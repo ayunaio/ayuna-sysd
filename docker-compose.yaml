@@ -1,0 +1,263 @@
+services:
+  ## Set sysctl parameters for memory overcommit
+  sysctl-init:
+    image: busybox
+    container_name: ayuna-sysctl-init
+    hostname: ayuna-sysctl-init
+    command: /bin/sh -c "sysctl -w vm.overcommit_memory=1"
+    privileged: true
+    restart: "no"
+
+  ## PostgreSQL with pgvector extension for vector storage
+  postgres:
+    container_name: ayuna-postgres
+    hostname: ayuna-postgres
+    image: pgvector/pgvector:pg17
+    ports:
+      - "5432:5432"
+    env_file:
+      - env/ayuna-sysd.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ayunauser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  ## DozerDB / Neo4j Graph Database
+  neo4j:
+    container_name: ayuna-neo4j
+    hostname: ayuna-neo4j
+    image: graphstack/dozerdb:5.26.3.0
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    env_file:
+      - env/ayuna-sysd.env
+    volumes:
+      - neo4j_data:/data
+      - neo4j_plugins:/plugins
+      - neo4j_config:/var/lib/neo4j/conf
+      - neo4j_logs:/var/lib/neo4j/logs
+    networks:
+      - default
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:7474/browser/",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  valkey:
+    container_name: ayuna-valkey
+    hostname: ayuna-valkey
+    image: valkey/valkey:9
+    depends_on:
+      sysctl-init:
+        condition: service_completed_successfully
+    ports:
+      - "6379:6379"
+    env_file:
+      - env/ayuna-sysd.env
+    volumes:
+      - valkey_data:/data
+      - ./env/valkey.conf:/etc/valkey/valkey.conf:ro
+    networks:
+      - default
+    restart: unless-stopped
+    command: ["valkey-server", "/etc/valkey/valkey.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", 'valkey-cli -a "$$VALKEY_PASSWORD" ping | grep PONG']
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  ## Seaweedfs object storage
+  seaweedfs:
+    container_name: ayuna-seaweedfs
+    hostname: ayuna-seaweedfs
+    image: chrislusf/seaweedfs:latest
+    ports:
+      - "9333:9333" # Master UI
+      - "9340:9340" # Volume Server
+      - "8888:8888" # Filer UI
+      - "8333:8333" # S3 Endpoint
+    entrypoint: ["weed"]
+    command:
+      [
+        "server",
+        "-dir=/data",
+        "-s3",
+        "-s3.config=/etc/seaweedfs/s3.json",
+        "-filer=true",
+      ]
+    volumes:
+      - seaweed_data:/data
+      - ./env/seaweed-s3.json:/etc/seaweedfs/s3.json:ro
+    networks:
+      - default
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9333"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ## NATS messaging system
+  nats:
+    image: nats:latest
+    container_name: ayuna-nats
+    hostname: ayuna-nats
+    command: ["-js", "-c", "/etc/nats/nats.conf"]
+    ports:
+      - "8080:8080" # WebSocket only
+      - "8222:8222" # Monitoring (optional)
+      - "4222:4222" # TCP client connections
+    volumes:
+      - nats_data:/data
+      - ./env/nats.conf:/etc/nats/nats.conf:ro
+    restart: unless-stopped
+    networks:
+      - default
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: ayuna-minio-init
+    hostname: ayuna-minio-init
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    env_file:
+      - env/ayuna-sysd.env
+    volumes:
+      - ./scripts/s3-init.sh:/ayuna-s3-init.sh
+    entrypoint: ["/bin/sh", "/ayuna-s3-init.sh"]
+    restart: on-failure
+    networks:
+      - default
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.30.1
+    container_name: ayuna-temporal-admin-tools
+    hostname: ayuna-temporal-admin-tools
+    restart: on-failure:6
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: ["/bin/sh"]
+    command: "/scripts/init-temporal-pgsql.sh"
+
+  temporal:
+    image: temporalio/server:1.30.1
+    container_name: ayuna-temporal
+    hostname: ayuna-temporal
+    depends_on:
+      temporal-admin-tools:
+        condition: service_completed_successfully
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./conf/dynamic-temporal:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7233"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 60
+
+  temporal-create-namespace:
+    image: temporalio/admin-tools:1.30.1
+    container_name: ayuna-temporal-create-namespace
+    hostname: ayuna-temporal-create-namespace
+    restart: on-failure:5
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: ["/bin/sh"]
+    command: "/scripts/create-temporal-ns.sh"
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    container_name: ayuna-temporal-ui
+    hostname: ayuna-temporal-ui
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    ports:
+      - 8280:8080
+
+  open-observe:
+    image: public.ecr.aws/zinclabs/openobserve-enterprise:latest
+    container_name: ayuna-open-observe
+    hostname: ayuna-open-observe
+    env_file:
+      - env/ayuna-sysd.env
+    volumes:
+      - otel_data:/data
+    ports:
+      - "5080:5080"
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - default
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    external: true
+  neo4j_data:
+    external: true
+  neo4j_plugins:
+    external: true
+  neo4j_config:
+    external: true
+  neo4j_logs:
+    external: true
+  valkey_data:
+    external: true
+  seaweed_data:
+    external: true
+  nats_data:
+    external: true
+  otel_data:
+    external: true
+
+networks:
+  default:
+    name: ayuna-net
+    external: true

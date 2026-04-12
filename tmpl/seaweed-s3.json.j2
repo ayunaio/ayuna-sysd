@@ -1,0 +1,33 @@
+{
+  "identities": [
+    {
+      "actions": [
+        "Admin",
+        "Read",
+        "Write",
+        "List",
+        "Tagging"
+      ],
+      "credentials": [
+        {
+          "accessKey": {{ store.s3.admin.access_key | tojson }},
+          "secretKey": {{ store.s3.admin.secret_key | tojson }}
+        }
+      ],
+      "name": "ayunaadmin"
+    },
+    {
+      "actions": [
+        "Read",
+        "List"
+      ],
+      "credentials": [
+        {
+          "accessKey": {{ store.s3.reader.access_key | tojson }},
+          "secretKey": {{ store.s3.reader.secret_key | tojson }}
+        }
+      ],
+      "name": "ayunareader"
+    }
+  ]
+}

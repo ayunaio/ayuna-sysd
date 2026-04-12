@@ -1,0 +1,45 @@
+port: 4222    # TCP connections
+http: 8222    # monitoring
+debug: false
+trace: false
+logtime: true
+
+############
+# Accounts #
+############
+accounts {
+  ADMIN {
+    users = [
+      { user: "{{ nats.admin.username }}", password: "{{ nats.admin.password }}" }
+    ]
+  }
+}
+
+################################
+# Authorization (Auth Callout) #
+################################
+authorization {
+  auth_callout {
+    issuer: "{{ nats.auth_callout.issuer_pub }}"
+    account: ADMIN
+    auth_users: ["{{ nats.admin.username }}"]
+  }
+}
+
+#############
+# JetStream #
+#############
+jetstream {
+  store_dir: /data
+  max_mem_store: {{ nats.js.max_mem_store }}
+  max_file_store: {{ nats.js.max_file_store }}
+}
+
+###############################
+# WebSocket (browser clients) #
+###############################
+websocket {
+  port: {{ nats.websocket.port }}
+  no_tls: {{ nats.websocket.no_tls | tojson }}
+  same_origin: {{ nats.websocket.same_origin | tojson }}
+}
