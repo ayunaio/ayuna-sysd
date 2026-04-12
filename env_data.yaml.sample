@@ -1,0 +1,35 @@
+---
+store:
+  postgres:
+    password: <your-postgres-password>
+  neo4j:
+    password: <your-neo4j-password>
+  valkey:
+    password: <your-valkey-password>
+  s3:
+    admin:
+      access_key: <your-s3-admin-access-key>
+      secret_key: <your-s3-admin-secret-key>
+    reader:
+      access_key: <your-s3-reader-access-key>
+      secret_key: <your-s3-reader-secret-key>
+
+nats:
+  js:
+    max_mem_store: 2Gi   ## Example, you can edit it
+    max_file_store: 64Gi ## Example, you can edit it
+  websocket:
+    port: 8080          ## Example, you can edit it
+    no_tls: true        ## Example, you can edit it
+    same_origin: false  ## Example, you can edit it
+  auth_callout:
+    issuer_pub: <your-auth-callout-issuer-public-key>
+    issuer_seed: <your-auth-callout-issuer-seed>
+  admin:
+    username: <your-nats-admin-username>
+    password: <your-nats-admin-password>
+
+otel:
+  root_user:
+    email: <your-otel-root-user-email>
+    password: <your-otel-root-user-password>

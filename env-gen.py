@@ -36,7 +36,7 @@ def main():
             print(f"Error: Data file {data_file} not found.")
             sys.exit(1)
     else:
-        data_file = script_dir / "env-data.yaml"
+        data_file = script_dir / ".env_data.yaml"
         if not data_file.exists():
             print(f"Error: Data file {data_file} not found.")
             sys.exit(1)
