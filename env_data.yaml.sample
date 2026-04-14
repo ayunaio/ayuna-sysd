@@ -28,8 +28,3 @@ nats:
   admin:
     username: <your-nats-admin-username>
     password: <your-nats-admin-password>
-
-otel:
-  root_user:
-    email: <your-otel-root-user-email>
-    password: <your-otel-root-user-password>

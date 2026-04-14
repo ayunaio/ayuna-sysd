@@ -218,45 +218,23 @@ services:
     networks:
       - default
     ports:
-      - 8280:8080
+      - 8180:8080
 
-  open-observe:
-    image: public.ecr.aws/zinclabs/openobserve-enterprise:latest
-    container_name: ayuna-open-observe
-    hostname: ayuna-open-observe
+  otel-stack:
+    image: clickhouse/clickstack-all-in-one:latest
+    container_name: ayuna-otel-stack
+    hostname: ayuna-otel-stack
+    ports:
+      - 4317:4317 # OTLP gRPC
+      - 4318:4318 # OTLP HTTP
+      - 8280:8080 # Web UI
+      - 8123:8123 # ClickHouse HTTP
     env_file:
       - env/ayuna-sysd.env
     volumes:
-      - otel_data:/data
-    ports:
-      - "5080:5080"
-    depends_on:
-      minio-init:
-        condition: service_completed_successfully
-    networks:
-      - default
-    restart: unless-stopped
-
-  otel-collector:
-    image: otel/opentelemetry-collector
-    container_name: ayuna-otel-collector
-    hostname: ayuna-otel-collector
-    volumes:
-      - ./env/otel-collector.yaml:/etc/otelcol/config.yaml
-    ports:
-      - 1888:1888 # pprof extension
-      - 8988:8888 # Prometheus metrics exposed by the Collector
-      - 8889:8889 # Prometheus exporter metrics
-      - 13133:13133 # health_check extension
-      - 4317:4317 # OTLP gRPC receiver
-      - 4318:4318 # OTLP http receiver
-      - 55679:55679 # zpages extension
-    networks:
-      - default
-    restart: unless-stopped
-    depends_on:
-      open-observe:
-        condition: service_started
+      - clickhouse_db:/data/db
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
 
 volumes:
   postgres_data:
@@ -275,7 +253,11 @@ volumes:
     external: true
   nats_data:
     external: true
-  otel_data:
+  clickhouse_db:
+    external: true
+  clickhouse_data:
+    external: true
+  clickhouse_logs:
     external: true
 
 networks:

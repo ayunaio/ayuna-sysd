@@ -17,7 +17,6 @@ def main():
         "seaweed-s3.json.j2": "seaweed-s3.json",
         "valkey.conf.j2": "valkey.conf",
         "temporal.env.j2": "temporal.env",
-        "otel-collector.yaml.j2": "otel-collector.yaml",
     }
 
     for file in env_targets:

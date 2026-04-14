@@ -9,7 +9,6 @@
 # Create the bucket if it doesn't exist (-p ensures no error if it already exists)
 /usr/bin/mc mb -p seaweedfs/ayuna/workspace
 /usr/bin/mc mb -p seaweedfs/ayuna/uploads
-/usr/bin/mc mb -p seaweedfs/ayuna/otel
 
 # Optional: Set a public download policy for the bucket
 # /usr/bin/mc policy set download seaweedfs/downloads

@@ -72,7 +72,9 @@ backend_volumes=(
     "valkey_data"
     "seaweed_data"
     "nats_data"
-    "otel_data"
+    "clickhouse_db"
+    "clickhouse_data"
+    "clickhouse_logs"
 )
 
 sql_dbs=(
