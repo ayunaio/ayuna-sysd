@@ -1,0 +1,51 @@
+extensions:
+  docker_observer:
+    # The Docker API endpoint
+    endpoint: unix:///var/run/docker.sock
+    # How often to refresh container metadata
+    cache_sync_interval: 60s
+
+receivers:
+  filelog:
+    include:
+      - /var/lib/docker/containers/*/*-json.log
+    start_at: end
+    operators:
+      # Parse the JSON log line
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.time
+          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+      # Extract container ID from the file path
+      - type: regex_parser
+        regex: "/var/lib/docker/containers/(?P<container_id>[a-f0-9]{64})/"
+        parse_from: attributes["log.file.path"]
+      - type: move
+        from: attributes.log
+        to: body
+
+processors:
+  # Use the resource detection processor to add Docker metadata
+  resourcedetection:
+    detectors: [docker]
+    timeout: 2s
+    override: false
+
+  # Add custom resource attributes using the transform processor
+  transform:
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["container.runtime"], "docker")
+
+  batch:
+    timeout: 5s
+    send_batch_size: 500
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+    logs:
+      receivers: [filelog]
+      processors: [resourcedetection, transform, batch]
+      exporters: [clickhouse]

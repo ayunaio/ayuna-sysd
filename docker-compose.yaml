@@ -224,10 +224,11 @@ services:
     image: clickhouse/clickstack-all-in-one:latest
     container_name: ayuna-otel-stack
     hostname: ayuna-otel-stack
+    user: "0:0"
     ports:
       - 4317:4317 # OTLP gRPC
       - 4318:4318 # OTLP HTTP
-      - 8280:8080 # Web UI
+      - 8280:8280 # Web UI
       - 8123:8123 # ClickHouse HTTP
     env_file:
       - env/ayuna-sysd.env
@@ -235,6 +236,9 @@ services:
       - clickhouse_db:/data/db
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./conf/custom-otel-collector.yaml:/etc/otelcol-contrib/custom.config.yaml:ro
 
 volumes:
   postgres_data:
