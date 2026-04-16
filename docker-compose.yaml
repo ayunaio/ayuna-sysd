@@ -144,7 +144,7 @@ services:
     env_file:
       - env/ayuna-sysd.env
     volumes:
-      - ./scripts/s3-init.sh:/ayuna-s3-init.sh
+      - ./conf/setup/s3-init.sh:/ayuna-s3-init.sh
     entrypoint: ["/bin/sh", "/ayuna-s3-init.sh"]
     restart: on-failure
     networks:
@@ -163,7 +163,7 @@ services:
     networks:
       - default
     volumes:
-      - ./scripts:/scripts
+      - ./conf/setup:/scripts
     entrypoint: ["/bin/sh"]
     command: "/scripts/init-temporal-pgsql.sh"
 
@@ -202,7 +202,7 @@ services:
     networks:
       - default
     volumes:
-      - ./scripts:/scripts
+      - ./conf/setup:/scripts
     entrypoint: ["/bin/sh"]
     command: "/scripts/create-temporal-ns.sh"
 

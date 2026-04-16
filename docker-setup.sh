@@ -147,7 +147,7 @@ docker run --rm \
     -v neo4j_config:/var/lib/neo4j/conf \
     -v neo4j_logs:/var/lib/neo4j/logs \
     -v ayuna_data:/ayuna/data \
-    -v ./scripts/neo4j-init.sh:/tmp/neo4j-init.sh \
+    -v ./conf/setup/neo4j-init.sh:/tmp/neo4j-init.sh \
     alpine sh -c "sh /tmp/neo4j-init.sh; chown -R 1001:1001 /ayuna/data" && sync && echo_info "Ayuna volume setup completed."
 
 ## Create databases under postgres server and add pgvector extension in each.
