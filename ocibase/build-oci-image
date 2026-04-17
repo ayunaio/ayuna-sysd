@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  build-oci-image <registry> <oci-target> <tag>
+
+Arguments:
+  registry    Container registry name (for example: ghcr.io)
+  oci-target  One of: oci-py, oci-js, oci-go, oci-pyjs, oci-builder
+              Short aliases also accepted: py, js, go, pyjs, builder
+  tag         Image tag (for example: v1.0.0)
+
+Example:
+  ./scripts/build-oci-image ghcr.io oci-builder v1.0.0
+EOF
+}
+
+normalize_target() {
+    case "$1" in
+    oci-py | py)
+        printf '%s\n' "oci-py"
+        ;;
+    oci-js | js)
+        printf '%s\n' "oci-js"
+        ;;
+    oci-go | go)
+        printf '%s\n' "oci-go"
+        ;;
+    oci-pyjs | pyjs)
+        printf '%s\n' "oci-pyjs"
+        ;;
+    oci-builder | builder)
+        printf '%s\n' "oci-builder"
+        ;;
+    *)
+        return 1
+        ;;
+    esac
+}
+
+ensure_docker_squash() {
+    if command -v docker-squash >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if ! command -v pipx >/dev/null 2>&1; then
+        echo "Error: docker-squash is not installed and pipx is unavailable" >&2
+        echo "Install pipx first, then rerun this script" >&2
+        exit 1
+    fi
+
+    echo "docker-squash not found; installing with pipx"
+    pipx install docker-squash
+
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    if ! command -v docker-squash >/dev/null 2>&1; then
+        echo "Error: docker-squash install succeeded but command is not on PATH" >&2
+        echo "Try adding $HOME/.local/bin to PATH" >&2
+        exit 1
+    fi
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+if [[ "$#" -ne 3 ]]; then
+    usage
+    exit 1
+fi
+
+registry="$1"
+target_input="$2"
+tag="$3"
+
+if ! oci_target="$(normalize_target "$target_input")"; then
+    echo "Error: invalid oci-target '$target_input'" >&2
+    usage
+    exit 1
+fi
+
+registry="${registry%/}"
+if [[ -z "$registry" ]]; then
+    echo "Error: registry must not be empty" >&2
+    exit 1
+fi
+
+ensure_docker_squash
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+context_dir="$script_dir"
+dockerfile="$context_dir/Dockerfile"
+
+image_name="$registry/ayunaio/ayuna-${oci_target}:${tag}"
+unsquashed_image_name="${image_name}-unsquashed-tmp-$$"
+squashed_image_name="${image_name}-squashed-tmp-$$"
+
+echo "Building temporary unsquashed image: $unsquashed_image_name"
+echo "Using AYUNA_OCI=$oci_target"
+
+docker build \
+    --file "$dockerfile" \
+    --build-arg "AYUNA_OCI=$oci_target" \
+    --tag "$unsquashed_image_name" \
+    "$context_dir"
+
+echo "Creating squashed image: $squashed_image_name"
+docker-squash \
+    --tag "$squashed_image_name" \
+    "$unsquashed_image_name"
+
+unsquashed_size="$(docker image inspect --format '{{.Size}}' "$unsquashed_image_name")"
+squashed_size="$(docker image inspect --format '{{.Size}}' "$squashed_image_name")"
+
+if ((squashed_size <= unsquashed_size)); then
+    selected_image="$squashed_image_name"
+    echo "Using squashed image (size: $squashed_size, unsquashed: $unsquashed_size)"
+else
+    selected_image="$unsquashed_image_name"
+    echo "Using unsquashed image because squashed is larger (squashed: $squashed_size, unsquashed: $unsquashed_size)"
+fi
+
+docker tag "$selected_image" "$image_name"
+
+docker image rm "$unsquashed_image_name" "$squashed_image_name" >/dev/null 2>&1 || true
+
+echo "Build complete: $image_name"
