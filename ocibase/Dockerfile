@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.4
 
-## Valid values for AYUNA_OCI: oci-py, oci-js, oci-go, oci-langall, oci-builder
-ARG AYUNA_OCI=oci-langall
+## Valid values for AYUNA_OCI: oci-py, oci-js, oci-go, oci-pyjs, oci-builder
+ARG AYUNA_OCI=oci-builder
 ARG AYUNA_PYTHON_VER=3.12.13
-ARG AYUNA_NODEJS_VER=24.14.0
-ARG AYUNA_GOLANG_VER=1.26.1
+ARG AYUNA_NODEJS_VER=24.14.1
+ARG AYUNA_GOLANG_VER=1.26.2
 
 ARG AYUNA_UID=1001
 ARG AYUNA_GID=1001
@@ -157,8 +157,26 @@ WORKDIR /
 COPY --from=ayuna-builder ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER} ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}
 COPY --from=ayuna-builder ${AYUNA_UDK}/goext ${AYUNA_UDK}/goext
 
-##### Setup image for oci-langall #####
-FROM ayuna-ocibase AS ayuna-oci-langall
+##### Setup image for oci-pyjs #####
+FROM ayuna-ocibase AS ayuna-oci-pyjs
+
+ARG AYUNA_PYTHON_VER
+ARG AYUNA_NODEJS_VER
+ARG AYUNA_UDK
+
+ENV PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/bin:${PATH}
+ENV PATH=${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/lib:${LD_LIBRARY_PATH}
+ENV PKG_CONFIG_PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/lib/pkgconfig:${PKG_CONFIG_PATH}
+
+USER root
+WORKDIR /
+
+COPY --from=ayuna-builder ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER} ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}
+COPY --from=ayuna-builder ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER} ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}
+
+##### Setup image for oci-builder #####
+FROM ayuna-ocibase AS ayuna-oci-builder
 
 ARG AYUNA_PYTHON_VER
 ARG AYUNA_NODEJS_VER
@@ -180,16 +198,6 @@ COPY --from=ayuna-builder ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER} ${AYUNA_UDK}/py-${
 COPY --from=ayuna-builder ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER} ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}
 COPY --from=ayuna-builder ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER} ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}
 COPY --from=ayuna-builder ${AYUNA_UDK}/goext ${AYUNA_UDK}/goext
-
-##### Setup image for oci-builder #####
-FROM ayuna-oci-langall AS ayuna-oci-builder
-
-ARG AYUNA_PYTHON_VER
-ARG AYUNA_NODEJS_VER
-ARG AYUNA_GOLANG_VER
-
-USER root
-WORKDIR /
 
 RUN set -eu; \
     echo "Setting up OCI-BUILDER target..."; \

@@ -224,7 +224,7 @@ services:
     image: clickhouse/clickstack-all-in-one:latest
     container_name: ayuna-otel-stack
     hostname: ayuna-otel-stack
-    user: "0:0"
+    privileged: true
     ports:
       - 4317:4317 # OTLP gRPC
       - 4318:4318 # OTLP HTTP
